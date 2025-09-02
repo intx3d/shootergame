@@ -1,3 +1,5 @@
+
+
  
 // Basic Phaser 3 game setup for a top-down shooter
 const config = {
@@ -17,7 +19,7 @@ const config = {
     }
 };
 
-
+let potions;
 let player;
 let cursors;
 let bullets;
@@ -146,6 +148,35 @@ function create() {
     // Collisions
     this.physics.add.overlap(bullets, enemies, bulletHitsEnemy, null, this);
     this.physics.add.overlap(player, enemies, playerHitsEnemy, null, this);
+
+    const POTION_HEAL = 30;
+    // Healing potions group
+    potions = this.physics.add.group();
+    // Spawn potions at random intervals (every 5-10 seconds)
+    this.time.addEvent({ delay: Phaser.Math.Between(5000, 10000), callback: function spawnPotionTimer() {
+        spawnPotion.call(this);
+        // Schedule next spawn
+        this.time.addEvent({ delay: Phaser.Math.Between(5000, 10000), callback: spawnPotionTimer, callbackScope: this });
+    }, callbackScope: this });
+
+    // Player can pick up potions
+    this.physics.add.overlap(player, potions, collectPotion, null, this);
+    // Optionally, potions could despawn after some time or animate
+function spawnPotion() {
+    // Spawn at random location inside game area
+    let x = Phaser.Math.Between(40, 1240);
+    let y = Phaser.Math.Between(40, 920);
+    let potion = this.add.rectangle(x, y, 20, 20, 0x00ffff);
+    this.physics.add.existing(potion);
+    potion.body.setAllowGravity(false);
+    potions.add(potion);
+}
+
+function collectPotion(playerObj, potion) {
+    potion.destroy();
+    health = Math.min(100, health + POTION_HEAL);
+    healthText.setText('Health: ' + health);
+}
 
 }
 
