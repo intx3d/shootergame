@@ -47,6 +47,7 @@ let pauseOverlay;
 let resumeButton;
 let restartButton;
 let isPaused = false;
+const POTION_HEAL = 30;
     // Pause button (top right)
     
 
@@ -58,6 +59,7 @@ function preload() {
     graphics.fillStyle(0xffd700, 1);
     graphics.fillRect(0, 0, 8, 8);
     graphics.generateTexture('bullet', 8, 8);
+    
 }
 
 function create() {
@@ -113,7 +115,8 @@ function create() {
         window.location.reload();
     });
     // Player
-    player = this.add.rectangle(400, 300, 32, 32, 0xffffff);
+    player = this.add.rectangle(400, 300, 32, 16, 0xffffff);
+    player.isIso=true; // For isometric scaling
     this.physics.add.existing(player);
     player.body.setCollideWorldBounds(true);
     cursors = this.input.keyboard.addKeys({
@@ -138,8 +141,6 @@ function create() {
 
     // Enemies group
     enemies = this.physics.add.group();
-        // Enemies group
-        enemies = this.physics.add.group();
 
     // Score and health UI
     scoreText = this.add.text(10, 10, 'Score: 0', { font: '20px Arial', fill: '#fff' });
@@ -149,24 +150,27 @@ function create() {
     this.physics.add.overlap(bullets, enemies, bulletHitsEnemy, null, this);
     this.physics.add.overlap(player, enemies, playerHitsEnemy, null, this);
 
-    const POTION_HEAL = 30;
     // Healing potions group
     potions = this.physics.add.group();
     // Spawn potions at random intervals (every 5-10 seconds)
-    this.time.addEvent({ delay: Phaser.Math.Between(5000, 10000), callback: function spawnPotionTimer() {
-        spawnPotion.call(this);
-        // Schedule next spawn
-        this.time.addEvent({ delay: Phaser.Math.Between(5000, 10000), callback: spawnPotionTimer, callbackScope: this });
-    }, callbackScope: this });
+  this.time.addEvent({ delay: Phaser.Math.Between(5000, 10000), callback: spawnPotionTimer, callbackScope: this });
 
     // Player can pick up potions
     this.physics.add.overlap(player, potions, collectPotion, null, this);
     // Optionally, potions could despawn after some time or animate
+
+
+}
+function spawnPotionTimer() {
+    spawnPotion.call(this);
+    this.time.addEvent({ delay: Phaser.Math.Between(5000, 10000), callback: spawnPotionTimer, callbackScope: this });
+}
 function spawnPotion() {
     // Spawn at random location inside game area
     let x = Phaser.Math.Between(40, 1240);
     let y = Phaser.Math.Between(40, 920);
-    let potion = this.add.rectangle(x, y, 20, 20, 0x00ffff);
+    let potion = this.add.rectangle(x, y, 20, 10, 0x00ffff);
+    potion.isIso=true; // For isometric scaling
     this.physics.add.existing(potion);
     potion.body.setAllowGravity(false);
     potions.add(potion);
@@ -178,9 +182,16 @@ function collectPotion(playerObj, potion) {
     healthText.setText('Health: ' + health);
 }
 
-}
-
 function update(time, delta) {
+    let isoScale = (y) => 0.7 + 0.6 * (1 - y / 960); // scale from 1.3 (bottom) to 0.7 (top)
+if (player.isIso) player.setScale(isoScale(player.y), isoScale(player.y));
+enemies.children.each(function(enemy) {
+    if (enemy.isIso) enemy.setScale(isoScale(enemy.y), isoScale(enemy.y));
+}, this);
+potions.children.each(function(potion) {
+    if (potion.isIso) potion.setScale(isoScale(potion.y), isoScale(potion.y));
+}, this);
+
     if (!gameStarted || gameOver || isPaused) return;
     const speed = 200;
     // Keyboard movement
@@ -245,7 +256,8 @@ function spawnEnemy() {
     else if (edge === 1) { x = 1280; y = Phaser.Math.Between(0, 960); }
     else if (edge === 2) { x = Phaser.Math.Between(0, 1280); y = 0; }
     else { x = Phaser.Math.Between(0, 1280); y = 960; }
-    let enemy = this.add.rectangle(x, y, 28, 28, type.color);
+    let enemy = this.add.rectangle(x, y, 28, 14, type.color);
+    enemy.isIso=true; // For isometric scaling
     this.physics.add.existing(enemy);
     enemy.body.setAllowGravity(false);
     // Attach custom properties
