@@ -24,6 +24,7 @@ let lastFired = 0;
 let lastDirection = { x: 0, y: -1 }; // Default shoot up
 // No need for custom pointer tracking; use this.input.activePointer
 let enemies;
+let enemySpawnTimer;
 // Enemy types: speed and health
 const ENEMY_TYPES = [
   { color: 0xff3333, speed: 80, health: 1 }, // Type 1: slow, weak
@@ -56,12 +57,15 @@ function preload() {
 }
 
 function create() {
+  const W = this.scale.width;
+  const H = this.scale.height;
+
   // Game menu overlay
   menuOverlay = this.add
-    .rectangle(400, 300, 400, 200, 0x000000, 0.8)
+    .rectangle(W / 2, H / 2, 400, 200, 0x000000, 0.8)
     .setDepth(10);
   startButton = this.add
-    .text(400, 300, "START", {
+    .text(W / 2, H / 2, "START", {
       font: "48px Arial",
       fill: "#fff",
       backgroundColor: "#333",
@@ -76,7 +80,7 @@ function create() {
     gameStarted = true;
     pauseButton.setVisible(true);
     // Start enemy spawn timer
-    this.time.addEvent({
+    enemySpawnTimer = this.time.addEvent({
       delay: 1000,
       callback: spawnEnemy,
       callbackScope: this,
@@ -84,7 +88,7 @@ function create() {
     });
   });
   pauseButton = this.add
-    .text(760, 20, "II", {
+    .text(W - 20, 20, "II", {
       font: "32px Arial",
       fill: "#fff",
       backgroundColor: "#333",
@@ -101,16 +105,17 @@ function create() {
       pauseOverlay.setVisible(true);
       resumeButton.setVisible(true);
       restartButton.setVisible(true);
+      if (enemySpawnTimer) enemySpawnTimer.paused = true;
     }
   });
 
   // Pause overlay and buttons
   pauseOverlay = this.add
-    .rectangle(400, 300, 400, 200, 0x000000, 0.7)
+    .rectangle(W / 2, H / 2, 400, 200, 0x000000, 0.7)
     .setDepth(21)
     .setVisible(false);
   resumeButton = this.add
-    .text(400, 270, "RESUME", {
+    .text(W / 2, H / 2 - 30, "RESUME", {
       font: "32px Arial",
       fill: "#fff",
       backgroundColor: "#333",
@@ -121,7 +126,7 @@ function create() {
     .setDepth(22)
     .setVisible(false);
   restartButton = this.add
-    .text(400, 330, "RESTART", {
+    .text(W / 2, H / 2 + 30, "RESTART", {
       font: "32px Arial",
       fill: "#fff",
       backgroundColor: "#333",
@@ -137,12 +142,13 @@ function create() {
     pauseOverlay.setVisible(false);
     resumeButton.setVisible(false);
     restartButton.setVisible(false);
+    if (enemySpawnTimer) enemySpawnTimer.paused = false;
   });
   restartButton.on("pointerdown", () => {
     window.location.reload();
   });
   // Player
-  player = this.add.rectangle(400, 300, 32, 16, 0xffffff);
+  player = this.add.rectangle(W / 2, H / 2, 32, 16, 0xffffff);
   player.isIso = true; // For isometric scaling
   this.physics.add.existing(player);
   player.body.setCollideWorldBounds(true);
@@ -155,7 +161,9 @@ function create() {
 
   // Mouse click to shoot
   this.input.on("pointerdown", (pointerEvent) => {
-    if (pointerEvent.leftButtonDown()) {
+    if (!gameStarted || isPaused || gameOver) return;
+    // Prefer left click or taps
+    if (!pointerEvent || pointerEvent.leftButtonDown()) {
       fireBullet.call(this);
     }
   });
@@ -206,8 +214,10 @@ function spawnPotionTimer() {
 }
 function spawnPotion() {
   // Spawn at random location inside game area
-  let x = Phaser.Math.Between(40, 1240);
-  let y = Phaser.Math.Between(40, 920);
+  const W = this.scale.width;
+  const H = this.scale.height;
+  let x = Phaser.Math.Between(40, Math.max(40, W - 40));
+  let y = Phaser.Math.Between(40, Math.max(40, H - 40));
   let potion = this.add.rectangle(x, y, 20, 10, 0x00ffff);
   potion.isIso = true; // For isometric scaling
   this.physics.add.existing(potion);
@@ -222,14 +232,18 @@ function collectPotion(playerObj, potion) {
 }
 
 function update(time, delta) {
-  let isoScale = (y) => 0.7 + 0.6 * (1 - y / 960); // scale from 1.3 (bottom) to 0.7 (top)
+  const H = this.scale.height;
+  const W = this.scale.width;
+  let isoScale = (y) => 0.7 + 0.6 * (1 - y / H); // scale from 1.3 (bottom) to 0.7 (top)
   if (player.isIso) player.setScale(isoScale(player.y), isoScale(player.y));
   enemies.children.each(function (enemy) {
     if (enemy.isIso) enemy.setScale(isoScale(enemy.y), isoScale(enemy.y));
   }, this);
-  potions.children.each(function (potion) {
-    if (potion.isIso) potion.setScale(isoScale(potion.y), isoScale(potion.y));
-  }, this);
+  if (potions && potions.children) {
+    potions.children.each(function (potion) {
+      if (potion.isIso) potion.setScale(isoScale(potion.y), isoScale(potion.y));
+    }, this);
+  }
 
   if (!gameStarted || gameOver || isPaused) return;
   const speed = 200;
@@ -250,7 +264,7 @@ function update(time, delta) {
 
   // Remove offscreen bullets
   bullets.children.each(function (bullet) {
-    if (bullet.x < 0 || bullet.x > 1280 || bullet.y < 0 || bullet.y > 960) {
+    if (bullet.x < 0 || bullet.x > W || bullet.y < 0 || bullet.y > H) {
       bullet.destroy();
     }
   }, this);
@@ -289,6 +303,8 @@ function fireBullet() {
 }
 
 function spawnEnemy() {
+  const W = this.scale.width;
+  const H = this.scale.height;
   let typeIdx = Phaser.Math.Between(0, ENEMY_TYPES.length - 1);
   let type = ENEMY_TYPES[typeIdx];
   // Spawn at random edge
@@ -296,16 +312,16 @@ function spawnEnemy() {
   let x, y;
   if (edge === 0) {
     x = 0;
-    y = Phaser.Math.Between(0, 960);
+    y = Phaser.Math.Between(0, H);
   } else if (edge === 1) {
-    x = 1280;
-    y = Phaser.Math.Between(0, 960);
+    x = W;
+    y = Phaser.Math.Between(0, H);
   } else if (edge === 2) {
-    x = Phaser.Math.Between(0, 1280);
+    x = Phaser.Math.Between(0, W);
     y = 0;
   } else {
-    x = Phaser.Math.Between(0, 1280);
-    y = 960;
+    x = Phaser.Math.Between(0, W);
+    y = H;
   }
   let enemy = this.add.rectangle(x, y, 28, 14, type.color);
   enemy.isIso = true; // For isometric scaling
@@ -340,6 +356,7 @@ function playerHitsEnemy(playerObj, enemy) {
 
 function endGame() {
   gameOver = true;
+  if (enemySpawnTimer) enemySpawnTimer.remove(false);
   gameOverText = this.add.text(400, 300, "GAME OVER\nPress F5 to Restart", {
     font: "32px Arial",
     fill: "#fff",
