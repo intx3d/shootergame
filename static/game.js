@@ -27,6 +27,7 @@ let lastFired = 0;
 let lastDirection = { x: 0, y: -1 }; // Default shoot up
 // No need for custom pointer tracking; use this.input.activePointer
 let enemies;
+let enemySpawnTimer;
 // Enemy types: speed and health
 const ENEMY_TYPES = [
     { color: 0xff3333, speed: 80, health: 1 },   // Type 1: slow, weak
@@ -75,7 +76,7 @@ function create() {
         gameStarted = true;
         pauseButton.setVisible(true);
         // Start enemy spawn timer
-        this.time.addEvent({ delay: 1000, callback: spawnEnemy, callbackScope: this, loop: true });
+        enemySpawnTimer = this.time.addEvent({ delay: 1000, callback: spawnEnemy, callbackScope: this, loop: true });
     });
     pauseButton = this.add.text(760, 20, 'II', { font: '32px Arial', fill: '#fff', backgroundColor: '#333', padding: { x: 10, y: 4 } })
         .setOrigin(1, 0)
@@ -89,6 +90,7 @@ function create() {
             pauseOverlay.setVisible(true);
             resumeButton.setVisible(true);
             restartButton.setVisible(true);
+            if (enemySpawnTimer) enemySpawnTimer.paused = true;
         }
     });
 
@@ -110,6 +112,7 @@ function create() {
         pauseOverlay.setVisible(false);
         resumeButton.setVisible(false);
         restartButton.setVisible(false);
+        if (enemySpawnTimer) enemySpawnTimer.paused = false;
     });
     restartButton.on('pointerdown', () => {
         window.location.reload();
@@ -247,6 +250,7 @@ function fireBullet() {
 }
 
 function spawnEnemy() {
+    if (!gameStarted || gameOver || isPaused) return;
     let typeIdx = Phaser.Math.Between(0, ENEMY_TYPES.length - 1);
     let type = ENEMY_TYPES[typeIdx];
     // Spawn at random edge
@@ -290,6 +294,7 @@ function playerHitsEnemy(playerObj, enemy) {
 
 function endGame() {
     gameOver = true;
+    if (enemySpawnTimer) enemySpawnTimer.remove(false);
     gameOverText = this.add.text(400, 300, 'GAME OVER\nPress F5 to Restart', { font: '32px Arial', fill: '#fff', align: 'center' });
     gameOverText.setOrigin(0.5);
     player.body.setVelocity(0);
